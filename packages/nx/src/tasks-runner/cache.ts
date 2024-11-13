@@ -20,6 +20,7 @@ import { verifyOrUpdateNxCloudClient } from '../nx-cloud/update-manager';
 import { getCloudOptions } from '../nx-cloud/utilities/get-cloud-options';
 import { isCI } from '../utils/is-ci';
 import { output } from '../utils/output';
+import { logger } from '../utils/logger';
 
 export type CachedResult = {
   terminalOutput: string;
@@ -29,13 +30,37 @@ export type CachedResult = {
 };
 export type TaskWithCachedResult = { task: Task; cachedResult: CachedResult };
 
+// This function is called once during tasks runner initialization. It checks if the db cache is enabled and logs a warning if it is not.
 export function dbCacheEnabled(nxJson: NxJsonConfiguration = readNxJson()) {
-  return (
-    !IS_WASM &&
-    process.env.NX_DISABLE_DB !== 'true' &&
-    nxJson.useLegacyCache !== true &&
-    process.env.NX_DB_CACHE !== 'false'
-  );
+  // If the user has explicitly disabled the db cache, we can warn...
+  if (
+    nxJson.useLegacyCache ||
+    process.env.NX_DISABLE_DB === 'true' ||
+    process.env.NX_DB_CACHE === 'false'
+  ) {
+    // TODO (@AgentEnder): Insert correct link after @isaacplmann has written the documentation.
+    logger.warn(
+      `Nx is using the filesystem cache instead of the db cache. There are some limitations and trade-offs to consider when using the filesystem cache. Read more at https://nx.dev/{insert-link-here}.`
+    );
+    return false;
+  }
+  // ...but if on wasm and the the db cache isnt supported we shouldn't warn
+  if (IS_WASM) {
+    return false;
+  }
+  // Below this point we are using the db cache.
+  if (
+    // The NX_REJECT_UNKNOWN_LOCAL_CACHE env var is not supported with the db cache.
+    // If the user has tried to use it, we can point them to powerpack as it
+    // provides a similar featureset.
+    process.env.NX_REJECT_UNKNOWN_LOCAL_CACHE === '0' ||
+    process.env.NX_REJECT_UNKNOWN_LOCAL_CACHE === 'false'
+  ) {
+    logger.warn(
+      'NX_REJECT_UNKNOWN_LOCAL_CACHE=0 is not supported with the new db cache. If you were using this environment variable to suppress warnings about unrecognized cache artifacts you may be interested in Nx PowerPack. Read more at https://nx.dev/powerpack.'
+    );
+  }
+  return true;
 }
 
 // Do not change the order of these arguments as this function is used by nx cloud
