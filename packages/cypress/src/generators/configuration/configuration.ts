@@ -116,6 +116,14 @@ export async function configurationGeneratorInternal(
       updateJson(tree, 'tsconfig.json', (json) => {
         json.references ??= [];
         json.references.push({ path: './' + projectRoot });
+        if (
+          json.compilerOptions?.module &&
+          json.compilerOptions?.moduleResolution
+        ) {
+          // Cypress only works with node10 resolution
+          // See: https://github.com/cypress-io/cypress/issues/27731
+          json.compilerOptions.moduleResolution = 'node10';
+        }
         return json;
       });
     }
